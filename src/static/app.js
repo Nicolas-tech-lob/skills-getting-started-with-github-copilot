@@ -12,6 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Clear loading message
       activitiesList.innerHTML = "";
+      activitySelect.replaceChildren(activitySelect.options[0]);
 
       // Populate activities list
       Object.entries(activities).forEach(([name, details]) => {
@@ -24,8 +25,67 @@ document.addEventListener("DOMContentLoaded", () => {
           <h4>${name}</h4>
           <p>${details.description}</p>
           <p><strong>Schedule:</strong> ${details.schedule}</p>
-          <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          <p class="activity-availability"><strong>Availability:</strong> <span>${spotsLeft} spots left</span></p>
         `;
+
+        const participantsSection = document.createElement("div");
+        participantsSection.className = "participants-section";
+
+        const participantsHeading = document.createElement("h5");
+        participantsHeading.textContent = "Participants";
+        participantsSection.appendChild(participantsHeading);
+
+        const participantsList = document.createElement("ul");
+        details.participants.forEach((participant) => {
+          const participantItem = document.createElement("li");
+          const participantName = document.createElement("span");
+          participantName.textContent = participant;
+          participantItem.appendChild(participantName);
+
+          const deleteButton = document.createElement("button");
+          deleteButton.type = "button";
+          deleteButton.className = "delete-participant-button";
+          deleteButton.setAttribute("aria-label", `Unregister ${participant} from ${name}`);
+          deleteButton.title = "Unregister participant";
+
+          const deleteIcon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+          deleteIcon.setAttribute("viewBox", "0 0 24 24");
+          deleteIcon.setAttribute("aria-hidden", "true");
+          const deleteIconPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          deleteIconPath.setAttribute("d", "M3 6h18M8 6V4h8v2m2 0-.9 14H6.9L6 6m4 4v7m4-7v7");
+          deleteIcon.appendChild(deleteIconPath);
+          deleteButton.appendChild(deleteIcon);
+
+          deleteButton.addEventListener("click", async () => {
+            deleteButton.disabled = true;
+            try {
+              const response = await fetch(
+                `/activities/${encodeURIComponent(name)}/signup?email=${encodeURIComponent(participant)}`,
+                { method: "DELETE" }
+              );
+              const result = await response.json();
+
+              if (!response.ok) {
+                throw new Error(result.detail || "Unable to unregister participant");
+              }
+
+              participantItem.remove();
+              const spotsLeft = details.max_participants - participantsList.children.length;
+              activityCard.querySelector(".activity-availability span").textContent = `${spotsLeft} spots left`;
+            } catch (error) {
+              deleteButton.disabled = false;
+              messageDiv.textContent = error.message;
+              messageDiv.className = "error";
+              messageDiv.classList.remove("hidden");
+              console.error("Error unregistering participant:", error);
+            }
+          });
+
+          participantItem.appendChild(deleteButton);
+          participantsList.appendChild(participantItem);
+        });
+        participantsSection.appendChild(participantsList);
+        activityCard.appendChild(participantsSection);
 
         activitiesList.appendChild(activityCard);
 
@@ -62,6 +122,7 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        await fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
